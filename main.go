@@ -1,4 +1,4 @@
-package azrs_project
+package main
 
 import "fmt"
 
