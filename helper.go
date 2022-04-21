@@ -8,15 +8,16 @@ import (
 	"github.com/google/uuid"
 )
 
-func decodeBody(r io.Reader) (*Config, error) {
+// *RequestPost
+func decodeBody(r io.Reader) (*[]*Config, error) {
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
 
-	var rt Config
-	if err := dec.Decode(&rt); err != nil {
+	cf := []*Config{}
+	if err := dec.Decode(&cf); err != nil {
 		return nil, err
 	}
-	return &rt, nil
+	return &cf, nil
 }
 
 func renderJSON(w http.ResponseWriter, v interface{}) {
