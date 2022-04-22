@@ -1,7 +1,7 @@
 package main
 
 type Service struct {
-	Data map[string][]*Config `json:"config"`
+	Data map[string][]*Config
 }
 
 type Config struct {

@@ -9,15 +9,16 @@ import (
 )
 
 // *RequestPost
-func decodeBody(r io.Reader) (*[]*Config, error) {
+func decodeBody(r io.Reader) ([]*Config, error) {
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
 
-	cf := []*Config{}
+	var cf []*Config
+
 	if err := dec.Decode(&cf); err != nil {
 		return nil, err
 	}
-	return &cf, nil
+	return cf, nil
 }
 
 func renderJSON(w http.ResponseWriter, v interface{}) {

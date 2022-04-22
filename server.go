@@ -4,14 +4,11 @@ import (
 	"errors"
 	"mime"
 	"net/http"
-	"reflect"
+
+	"github.com/gorilla/mux"
 )
 
-// * CRUD :
-
 func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request) {
-	// TREBA DA HANDLE-UJE KADA JE POSLATA JSON KONFIGURACIJA (1)
-	//  ILI KONFIGURACIONA GRUPA (VISE KONFIGURACIJA)
 
 	contentType := req.Header.Get("Content-Type")
 	mediatype, _, err := mime.ParseMediaType(contentType)
@@ -27,65 +24,86 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 	}
 
 	cf, err := decodeBody(req.Body)
-	println(reflect.TypeOf(req.Body))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	id := createId()
-	// array := []*Config{}
-	// array = append(array, cf)
-	println(*cf)
-	println(cf)
-	// if len(*cf) > 1 {
-
-	// }
-	bp.Data[id] = *cf
-	renderJSON(w, cf)
+	bp.Data[id] = cf
+	renderJSON(w, id)
 }
 
-// // VRACA Config sve
-// func (ts *Service) getAllConfig(w http.ResponseWriter, req *http.Request) {
-// 	// AKO TEST NE VALJA, VRATITI SE NA allConf LINIJU
-// 	//  vvv
-// 	allConf := []*Config{}
-// 	for _, v := range ts.data {
-// 		allConf = append(allConf, v)
-// 	}
+func (ts *Service) getAllConfig(w http.ResponseWriter, req *http.Request) {
+	allConf := []*Config{}
+	for _, v := range ts.Data {
+		for i := 0; i < len(v); i++ {
+			allConf = append(allConf, v[i])
+		}
+	}
 
-// 	renderJSON(w, allConf)
-// }
+	renderJSON(w, allConf)
+}
 
-// // VRACA 1 Config PO "id" (ili Error)
-// func (ts *Service) getConfigHandler(w http.ResponseWriter, req *http.Request) {
-// 	id := mux.Vars(req)["id"]
-// 	task, ok := ts.data[id]
+func (ts *Service) getConfigHandler(w http.ResponseWriter, req *http.Request) {
+	id := mux.Vars(req)["id"]
+	task, ok := ts.Data[id]
 
-// 	if !ok {
-// 		err := errors.New("key not found")
-// 		http.Error(w, err.Error(), http.StatusNotFound)
-// 		return
-// 	}
+	if !ok {
+		err := errors.New("key not found")
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	renderJSON(w, task)
+}
 
-// 	renderJSON(w, task)
-// }
+func (ts *Service) delConfigHandler(w http.ResponseWriter, req *http.Request) {
+	id := mux.Vars(req)["id"]
 
-// // BRISE Config ili GRUPU Config-a, sta god se pronadje pod zadatim "ID"
-// func (ts *Service) delConfigHandler(w http.ResponseWriter, req *http.Request) {
-// 	id := mux.Vars(req)["id"]
+	if value, ok := ts.Data[id]; ok {
 
-// 	if value, ok := ts.data[id]; ok {
+		delete(ts.Data, id)
+		renderJSON(w, value)
+	} else {
+		err := errors.New("key not found")
+		http.Error(w, err.Error(), http.StatusNotFound)
+	}
+}
 
-// 		delete(ts.data, id)
-// 		renderJSON(w, value)
-// 	} else {
-// 		err := errors.New("key not found")
-// 		http.Error(w, err.Error(), http.StatusNotFound)
-// 	}
-// }
+func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *http.Request) {
+	contentType := req.Header.Get("Content-Type")
+	mediatype, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-// //  ! ! ! *TODO - Dodati metodu u main kao handler za POST "/addConfigToExistingGroupHandler["id"]
-// func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *http.Request) {
-// 	// UBACUJE POSLATI JSON Config u POSTOJECU Config GRUPU ZA KOJU JE POSLAT "ID" KROZ URL
-// }
+	if mediatype != "application/json" {
+		err := errors.New("Expect application/json Content-Type")
+		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+		return
+	}
+
+	cf, err := decodeBody(req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	id := mux.Vars(req)["id"]
+	task, ok := ts.Data[id]
+
+	if !ok {
+		err := errors.New("key not found")
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	for _, c := range cf {
+		for i := 0; i < len(cf); i++ {
+			task = append(task, c)
+		}
+	}
+	ts.Data[id] = task
+	renderJSON(w, task)
+
+}
