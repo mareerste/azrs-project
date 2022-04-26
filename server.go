@@ -83,7 +83,6 @@ func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *h
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 		return
 	}
-
 	cf, err := decodeBody(req.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -98,10 +97,9 @@ func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *h
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+
 	for _, c := range cf {
-		for i := 0; i < len(cf); i++ {
-			task = append(task, c)
-		}
+		task = append(task, c)
 	}
 	ts.Data[id] = task
 	renderJSON(w, task)
