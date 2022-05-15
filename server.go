@@ -4,6 +4,8 @@ import (
 	"errors"
 	"mime"
 	"net/http"
+	"sort"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -55,6 +57,59 @@ func (ts *Service) getConfigHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	renderJSON(w, task)
+}
+
+func (ts *Service) getFilteredConfigHandler(w http.ResponseWriter, req *http.Request) {
+	id := mux.Vars(req)["id"]
+	labels := mux.Vars(req)["labels"]
+	labelMap := map[string]string{}
+	s := strings.Split(labels, ";")
+	for _, row := range s {
+		rosParse := strings.Split(row, ":")
+		labelMap[rosParse[0]] = rosParse[1]
+	}
+
+	task, ok := ts.Data[id]
+	var newTask []*Config
+
+	for i := 0; i < len(task); i++ {
+		entries := task[i].Entries
+		if len(labelMap) == len(task[i].Entries) {
+			check := false
+			keys := make([]string, 0, len(entries))
+			for k := range entries {
+				keys = append(keys, k)
+			}
+
+			sort.Strings(keys)
+			for _, k := range keys {
+				i, ok := labelMap[k]
+				if ok == false {
+					check = true
+					break
+				} else {
+					if i != entries[k] {
+						check = true
+						break
+					}
+				}
+			}
+			if check != true {
+				newTask = append(newTask, task[i])
+			}
+		}
+	}
+
+	if !ok {
+		err := errors.New("key not found")
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	} else if len(newTask) == 0 {
+		err := errors.New("params not match")
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	renderJSON(w, newTask)
 }
 
 func (ts *Service) delConfigHandler(w http.ResponseWriter, req *http.Request) {

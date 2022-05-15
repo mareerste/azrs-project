@@ -27,6 +27,7 @@ func main() {
 	router.HandleFunc("/config/", server.createConfigHandler).Methods("POST")
 	router.HandleFunc("/configs/", server.getAllConfig).Methods("GET")
 	router.HandleFunc("/config/{id}/", server.getConfigHandler).Methods("GET")
+	router.HandleFunc("/config/{id}/{labels}", server.getFilteredConfigHandler).Methods("GET")
 	router.HandleFunc("/config/{id}/", server.delConfigHandler).Methods("DELETE")
 	router.HandleFunc("/config/{id}/", server.addConfigToExistingGroupHandler).Methods("PUT")
 
