@@ -1,7 +1,16 @@
 package main
 
 type Service struct {
-	Data map[string][]*Config
+	Data map[string][]*Configs
+}
+
+// type Configs struct {
+// 	Version string    `json:"version"`
+// 	Configs []*Config `json:"configs"`
+// }
+
+type Configs struct {
+	Configs map[string][]*Config `json:"configs"`
 }
 
 type Config struct {
