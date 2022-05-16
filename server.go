@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"mime"
 	"net/http"
 
@@ -49,20 +50,15 @@ func (ts *Service) getAllConfig(w http.ResponseWriter, req *http.Request) {
 }
 
 func (ts *Service) getConfigHandler(w http.ResponseWriter, req *http.Request) {
-	id := mux.Vars(req)["id"]
-	task, ok := ts.Data[id]
-
-	if !ok {
-		err := errors.New("key not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	renderJSON(w, task)
+	err := errors.New("version not found")
+	http.Error(w, err.Error(), http.StatusNotFound)
+	return
 }
 
 func (ts *Service) getConfigHandlerVersion(w http.ResponseWriter, req *http.Request) {
 	id := mux.Vars(req)["id"]
 	version := mux.Vars(req)["version"]
+	
 	if len(version) == 0 {
 		err := errors.New("version not found")
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -173,89 +169,53 @@ func (ts *Service) delConfigHandlerVersion(w http.ResponseWriter, req *http.Requ
 	}
 }
 
-func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *http.Request) {
-	contentType := req.Header.Get("Content-Type")
-	mediatype, _, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+func (ts Service) addConfigToExistingGroupHandler(w http.ResponseWriter, reqhttp.Request) {
+    contentType := req.Header.Get("Content-Type")
+    mediatype, , err := mime.ParseMediaType(contentType)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
 
-	if mediatype != "application/json" {
-		err := errors.New("Expect application/json Content-Type")
-		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
-		return
-	}
-	cf, err := decodeBody(req.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+    if mediatype != "application/json" {
+        err := errors.New("Expect application/json Content-Type")
+        http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+        return
+    }
+    cf, err := decodeBodyConfig(req.Body)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
 
-	id := mux.Vars(req)["id"]
-	task, ok := ts.Data[id]
+    id := mux.Vars(req)["id"]
+    version := mux.Vars(req)["version"]
+    fmt.Println(version)
+    if len(version) == 0 {
+        err := errors.New("version not found")
+        http.Error(w, err.Error(), http.StatusNotFound)
+        return
+    }
+    task, ok := ts.Data[id]
+    result, error := task[0].Configs[version]
 
-	if !ok {
-		err := errors.New("key not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
+    if !error {
+        err := errors.New("version not found")
+        http.Error(w, err.Error(), http.StatusNotFound)
+        return
+    }
 
-	for _, c := range cf {
-		task = append(task, c)
-	}
-	ts.Data[id] = task
-	renderJSON(w, task)
+    if !ok {
+        err := errors.New("key not found")
+        http.Error(w, err.Error(), http.StatusNotFound)
+        return
+    }
 
-}
-
-func (ts *Service) addNewVersionToConfigsHandler(w http.ResponseWriter, req *http.Request) {
-	contentType := req.Header.Get("Content-Type")
-	mediatype, _, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if mediatype != "application/json" {
-		err := errors.New("Expect application/json Content-Type")
-		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
-		return
-	}
-	cf, err := decodeBodyConfig(req.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	id := mux.Vars(req)["id"]
-	version := mux.Vars(req)["version"]
-
-	if len(version) == 0 {
-		err := errors.New("version not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	task, ok := ts.Data[id]
-	result, error := task[0].Configs[version]
-
-	if !error {
-		err := errors.New("version not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	if !ok {
-		err := errors.New("key not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	for _, c := range cf {
-		result = append(result, c)
-	}
-	task[0].Configs[version] = result
-	ts.Data[id] = task
-	renderJSON(w, task)
+    for , c := range cf {
+        result = append(result, c)
+    }
+    task[0].Configs[version] = result
+    ts.Data[id] = task
+    renderJSON(w, task)
 
 }
