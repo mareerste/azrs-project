@@ -30,9 +30,8 @@ func main() {
 	router.HandleFunc("/config/{id}/{version}", server.getConfigHandlerVersion).Methods("GET")
 	// router.HandleFunc("/config/{id}/{labels}", server.getFilteredConfigHandler).Methods("GET")
 	router.HandleFunc("/config/{id}/", server.delConfigHandler).Methods("DELETE")
-	router.HandleFunc("/config/{id}/", server.addConfigToExistingGroupHandler).Methods("PUT")
-	router.HandleFunc("/config/{id}/", server.addNewVersionToConfigsHandler).Methods("PUT")
-
+	router.HandleFunc("/config/{id}/{version}", server.addConfigToExistingGroupHandler).Methods("PUT")
+	router.HandleFunc("/config/{id}/{version}", server.delConfigHandlerVersion).Methods("DELETE")
 	// start server
 	srv := &http.Server{Addr: "0.0.0.0:8000", Handler: router}
 	go func() {
