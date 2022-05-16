@@ -9,11 +9,11 @@ import (
 )
 
 // *RequestPost
-func decodeBody(r io.Reader) ([]*Config, error) {
+func decodeBody(r io.Reader) ([]*Configs, error) {
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
 
-	var cf []*Config
+	var cf []*Configs
 
 	if err := dec.Decode(&cf); err != nil {
 		return nil, err
