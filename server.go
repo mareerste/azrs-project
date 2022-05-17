@@ -61,6 +61,44 @@ func (ts *Service) getConfigHandler(w http.ResponseWriter, req *http.Request) {
 	renderJSON(w, task)
 }
 
+func (ts *Service) createNewVersionHandler(w http.ResponseWriter, req *http.Request) {
+	id := mux.Vars(req)["id"]
+	task, ok := ts.Data[id]
+	version := mux.Vars(req)["version"]
+	if len(version) == 0 {
+		err := errors.New("version doesn't exist")
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	if !ok {
+		err := errors.New("key not found")
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	contentType := req.Header.Get("Content-Type")
+	mediatype, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if mediatype != "application/json" {
+		err := errors.New("Expect application/json Content-Type")
+		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+		return
+	}
+
+	cf, err := decodeBodyConfig(req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	task[0].Configs[version] = cf
+	ts.Data[id] = task
+	renderJSON(w, task)
+}
+
 func (ts *Service) getConfigHandlerVersion(w http.ResponseWriter, req *http.Request) {
 	id := mux.Vars(req)["id"]
 	version := mux.Vars(req)["version"]

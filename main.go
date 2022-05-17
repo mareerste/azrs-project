@@ -30,6 +30,7 @@ func main() {
 	router.HandleFunc("/config/{id}/{version}", server.getConfigHandlerVersion).Methods("GET")
 	// router.HandleFunc("/config/{id}/{labels}", server.getFilteredConfigHandler).Methods("GET")
 	router.HandleFunc("/config/{id}/", server.delConfigHandler).Methods("DELETE")
+	router.HandleFunc("/config/{id}/{version}", server.createNewVersionHandler).Methods("POST")
 	router.HandleFunc("/config/{id}/{version}", server.addConfigToExistingGroupHandler).Methods("PUT")
 	router.HandleFunc("/config/{id}/{version}", server.delConfigHandlerVersion).Methods("DELETE")
 	// start server
