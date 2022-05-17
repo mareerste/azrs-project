@@ -1,10 +1,12 @@
 // package configstore
 package main
 
-// import "api"
+import (
+	"github.com/hashicorp/consul/api"
+)
 
 type Service struct {
-	Data map[string][]*Config
+	cf *ConfigStore
 }
 
 type Config struct {

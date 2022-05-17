@@ -21,9 +21,15 @@ func main() {
 	router := mux.NewRouter()
 	router.StrictSlash(true)
 
-	server := Service{
-		Data: map[string][]*Config{},
+	cf, err := New()
+	if err != nil {
+		log.Fatal(err)
 	}
+
+	server := Service{
+		cf: cf,
+	}
+
 	router.HandleFunc("/config/", server.createConfigHandler).Methods("POST")
 	router.HandleFunc("/configs/", server.getAllConfig).Methods("GET")
 	router.HandleFunc("/config/{id}/", server.getConfigHandler).Methods("GET")

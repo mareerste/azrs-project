@@ -3,11 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
+	"github.com/hashicorp/consul/api"
 	"io"
 	"net/http"
 	"os"
-
-	"github.com/google/uuid"
 )
 
 // *RequestPost
@@ -64,10 +64,12 @@ func New() (*ConfigStore, error) {
 
 // KREIRANJE CONF
 // TODO ? vvv valja li prosledjen parametar: conf []*Config ?
-func (confStore *ConfigStore) AddConfig(conf *Config) (*Config, error) {
+func (confStore *ConfigStore) AddConfig(conf []*Config) ([]*Config, error) {
 	kv := confStore.cli.KV()
-	sid, rid := generateKey()
-	conf.Id = rid
+	sid, rid := generateKey() // sid je u bazi rid u postmanu
+	print(sid)
+	print(rid)
+	//conf.id = rid //nema u modelu?
 
 	data, err := json.Marshal(conf)
 	if err != nil {
@@ -84,7 +86,7 @@ func (confStore *ConfigStore) AddConfig(conf *Config) (*Config, error) {
 
 // VRACANJE CONF
 func (confStore *ConfigStore) GetConf(id string) (*Config, error) {
-	kv := ps.cli.KV()
+	kv := confStore.cli.KV()
 	pair, _, err := kv.Get(constructKey(id), nil)
 	if err != nil {
 		return nil, err
@@ -101,9 +103,6 @@ func (confStore *ConfigStore) GetConf(id string) (*Config, error) {
 // VRACANJE SVIH POSTOVA
 // TODO: Valja li kada je primenjeno na nas model (gde nema posebnu
 // strukturu ConfGroup, vec konstruisemo niz pri vracanju odgovora umesto toga) ???
-const (
-	all = "allConfigs"
-)
 
 func (confStore *ConfigStore) GetAll() ([]*Config, error) {
 	kv := confStore.cli.KV()
@@ -134,3 +133,8 @@ func (confStore *ConfigStore) Delete(id string) (map[string]string, error) {
 
 	return map[string]string{"Deleted": id}, nil
 }
+
+const (
+	posts = "confgis/%s"
+	all   = "configs"
+)
