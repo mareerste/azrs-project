@@ -11,11 +11,11 @@ import (
 )
 
 // *RequestPost
-func decodeBody(r io.Reader) ([]*Config, error) {
+func decodeBody(r io.Reader) ([]*Configs, error) {
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
 
-	var cf []*Config
+	var cf []*Configs
 
 	if err := dec.Decode(&cf); err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func New() (*ConfigStore, error) {
 
 // KREIRANJE CONF
 // TODO ? vvv valja li prosledjen parametar: conf []*Config ?
-func (confStore *ConfigStore) AddConfig(conf []*Config) ([]*Config, error) {
+func (confStore *ConfigStore) AddConfig(conf []*Configs) ([]*Configs, error) {
 	kv := confStore.cli.KV()
 	sid, rid := generateKey() // sid je u bazi rid u postmanu
 	print(sid)
