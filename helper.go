@@ -3,15 +3,36 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/hashicorp/consul/api"
 	"io"
 	"net/http"
-	"os"
+
+	"github.com/google/uuid"
 )
 
 // *RequestPost
-func decodeBody(r io.Reader) (*Configs, error) {
+func decodeBody(r io.Reader) ([]*Configs, error) {
+	dec := json.NewDecoder(r)
+	dec.DisallowUnknownFields()
+
+	var cf []*Configs
+
+	if err := dec.Decode(&cf); err != nil {
+		return nil, err
+	}
+	return cf, nil
+}
+func decodeBodyConfig(r io.Reader) ([]*Config, error) {
+	dec := json.NewDecoder(r)
+	dec.DisallowUnknownFields()
+
+	var cf []*Config
+
+	if err := dec.Decode(&cf); err != nil {
+		return nil, err
+	}
+	return cf, nil
+}
+func decodeBodyConfigs(r io.Reader) (*Configs, error) {
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
 
@@ -38,101 +59,16 @@ func createId() string {
 	return uuid.New().String()
 }
 
+const (
+	posts = "posts/%s"
+	all   = "posts"
+)
+
 func generateKey() (string, string) {
 	id := uuid.New().String()
-
-	return fmt.Sprintf("configs/%s", id), id
+	return fmt.Sprintf(posts, id), id
 }
 
 func constructKey(id string) string {
-	return fmt.Sprintf("configs/%s", id)
+	return fmt.Sprintf(posts, id)
 }
-
-func New() (*ConfigStore, error) {
-	db := os.Getenv("DB")
-	dbport := os.Getenv("DBPORT")
-
-	config := api.DefaultConfig()
-	config.Address = fmt.Sprintf("%s:%s", db, dbport)
-	client, err := api.NewClient(config)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ConfigStore{cli: client}, nil
-}
-
-// KREIRANJE CONF
-func (confStore *ConfigStore) AddConfig(conf *Configs) (*Configs, error) {
-	kv := confStore.cli.KV()
-	sid, rid := generateKey() // sid je u bazi rid u postmanu
-	conf.Id = rid
-
-	data, err := json.Marshal(conf)
-	if err != nil {
-		return nil, err
-	}
-
-	c := &api.KVPair{Key: sid, Value: data}
-	_, err = kv.Put(c, nil)
-	if err != nil {
-		return nil, err
-	}
-	return conf, nil
-}
-
-// VRACANJE CONF
-func (confStore *ConfigStore) GetConf(id string) (*Configs, error) {
-	kv := confStore.cli.KV()
-	pair, _, err := kv.Get(constructKey(id), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	conf := &Configs{}
-	err = json.Unmarshal(pair.Value, conf)
-	if err != nil {
-		return nil, err
-	}
-	return conf, nil
-}
-
-// VRACANJE SVIH POSTOVA
-// TODO: Valja li kada je primenjeno na nas model (gde nema posebnu
-// strukturu ConfGroup, vec konstruisemo niz pri vracanju odgovora umesto toga) ???
-
-func (confStore *ConfigStore) GetAll() ([]*Configs, error) {
-	kv := confStore.cli.KV()
-	data, _, err := kv.List(all, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var configs []*Configs
-	for _, pair := range data {
-		config := &Configs{}
-		err = json.Unmarshal(pair.Value, config)
-		if err != nil {
-			return nil, err
-		}
-		configs = append(configs, config)
-	}
-
-	return configs, nil
-}
-
-// BRISANJE CONFIG-A
-func (confStore *ConfigStore) Delete(id string) (map[string]string, error) {
-	kv := confStore.cli.KV()
-	_, err := kv.Delete(constructKey(id), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string]string{"Deleted": id}, nil
-}
-
-const (
-	posts = "confgis/%s"
-	all   = "configs"
-)
