@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"github.com/gorilla/mux"
 	"mime"
 	"net/http"
 	//"github.com/gorilla/mux"
@@ -28,36 +29,37 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	id := createId()
-	//bp.Data[id] = cf
-	bp.cf.AddConfig(rt)
-	renderJSON(w, id)
+	config, err := bp.cf.AddConfig(rt)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	renderJSON(w, config.Id)
 }
 
-func (ts *Service) getAllConfig(w http.ResponseWriter, req *http.Request) {
-	//allConf := []*Config{}
-	//for _, v := range ts.Data {
-	//	for i := 0; i < len(v); i++ {
-	//		allConf = append(allConf, v[i])
-	//	}
-	//}
-	//
-	//renderJSON(w, allConf)
+func (bp *Service) getAllConfig(w http.ResponseWriter, _ *http.Request) {
+
+	allTasks, err := bp.cf.GetAll()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	renderJSON(w, allTasks)
 }
 
-func (ts *Service) getConfigHandler(w http.ResponseWriter, req *http.Request) {
-	//id := mux.Vars(req)["id"]
-	//task, ok := ts.Data[id]
-	//
-	//if !ok {
-	//	err := errors.New("key not found")
-	//	http.Error(w, err.Error(), http.StatusNotFound)
-	//	return
-	//}
-	//renderJSON(w, task)
+func (bp *Service) getConfigHandler(w http.ResponseWriter, req *http.Request) {
+	id := mux.Vars(req)["id"]
+	task, _ := bp.cf.GetConf(id) //task je configs, u configs imam mapu u kojoj imamo niz pokazivaca na configuraciju ili grupu
+
+	if task == nil {
+		err := errors.New("key not found")
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	renderJSON(w, task)
 }
 
-func (ts *Service) delConfigHandler(w http.ResponseWriter, req *http.Request) {
+func (bp *Service) delConfigHandler(w http.ResponseWriter, req *http.Request) {
 	//id := mux.Vars(req)["id"]
 	//
 	//if value, ok := ts.Data[id]; ok {
@@ -70,7 +72,7 @@ func (ts *Service) delConfigHandler(w http.ResponseWriter, req *http.Request) {
 	//}
 }
 
-func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *http.Request) {
+func (bp *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *http.Request) {
 	//contentType := req.Header.Get("Content-Type")
 	//mediatype, _, err := mime.ParseMediaType(contentType)
 	//if err != nil {

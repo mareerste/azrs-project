@@ -11,11 +11,11 @@ import (
 )
 
 // *RequestPost
-func decodeBody(r io.Reader) ([]*Configs, error) {
+func decodeBody(r io.Reader) (*Configs, error) {
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
 
-	var cf []*Configs
+	var cf *Configs
 
 	if err := dec.Decode(&cf); err != nil {
 		return nil, err
@@ -63,13 +63,10 @@ func New() (*ConfigStore, error) {
 }
 
 // KREIRANJE CONF
-// TODO ? vvv valja li prosledjen parametar: conf []*Config ?
-func (confStore *ConfigStore) AddConfig(conf []*Configs) ([]*Configs, error) {
+func (confStore *ConfigStore) AddConfig(conf *Configs) (*Configs, error) {
 	kv := confStore.cli.KV()
 	sid, rid := generateKey() // sid je u bazi rid u postmanu
-	print(sid)
-	print(rid)
-	//conf.id = rid //nema u modelu?
+	conf.Id = rid
 
 	data, err := json.Marshal(conf)
 	if err != nil {
@@ -85,14 +82,14 @@ func (confStore *ConfigStore) AddConfig(conf []*Configs) ([]*Configs, error) {
 }
 
 // VRACANJE CONF
-func (confStore *ConfigStore) GetConf(id string) (*Config, error) {
+func (confStore *ConfigStore) GetConf(id string) (*Configs, error) {
 	kv := confStore.cli.KV()
 	pair, _, err := kv.Get(constructKey(id), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	conf := &Config{}
+	conf := &Configs{}
 	err = json.Unmarshal(pair.Value, conf)
 	if err != nil {
 		return nil, err
@@ -104,22 +101,23 @@ func (confStore *ConfigStore) GetConf(id string) (*Config, error) {
 // TODO: Valja li kada je primenjeno na nas model (gde nema posebnu
 // strukturu ConfGroup, vec konstruisemo niz pri vracanju odgovora umesto toga) ???
 
-func (confStore *ConfigStore) GetAll() ([]*Config, error) {
+func (confStore *ConfigStore) GetAll() ([]*Configs, error) {
 	kv := confStore.cli.KV()
 	data, _, err := kv.List(all, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	configs := []*Config{}
+	var configs []*Configs
 	for _, pair := range data {
-		config := &Config{}
+		config := &Configs{}
 		err = json.Unmarshal(pair.Value, config)
 		if err != nil {
 			return nil, err
 		}
 		configs = append(configs, config)
 	}
+
 	return configs, nil
 }
 
