@@ -287,12 +287,12 @@ func (ts *Service) delConfigHandlerVersion(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	configs, ok := ts.cf.Get(id)
+	_, ok := ts.cf.Get(id)
 
 	if ok != nil {
-		delete(configs.Configs, version)
-		ts.cf.Put(configs, id)
-		renderJSON(w, configs)
+		_, newId, _ := ts.cf.DeleteVersion(id, version)
+		// ts.cf.Put(configs, id)
+		renderJSON(w, newId)
 	} else {
 		err := errors.New("key not found")
 		http.Error(w, err.Error(), http.StatusNotFound)

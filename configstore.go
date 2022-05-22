@@ -75,6 +75,38 @@ func (ps *ConfigStore) Delete(id string) (map[string]string, error) {
 	return map[string]string{"Deleted": id}, nil
 }
 
+func (ps *ConfigStore) DeleteVersion(id string, version string) (*Configs, string, error) {
+	kv := ps.cli.KV()
+	pair, _, err := kv.Get(constructKey(id), nil)
+	if err != nil {
+		return nil, "", err
+	}
+
+	configs := &Configs{}
+	err = json.Unmarshal(pair.Value, configs)
+	if err != nil {
+		return nil, "", err
+	}
+	_, error := kv.Delete(constructKey(id), nil)
+	if error != nil {
+		return nil, "", error
+	}
+	delete(configs.Configs, version)
+	data, err := json.Marshal(configs)
+	if err != nil {
+		return nil, "", err
+	}
+
+	p := &api.KVPair{Key: id, Value: data}
+	_, err = kv.Put(p, nil)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return nil, id, nil
+
+}
+
 func (ps *ConfigStore) Post(configs *Configs) (*Configs, string, error) {
 	kv := ps.cli.KV()
 
