@@ -115,8 +115,12 @@ func (ts *Service) createNewVersionHandler(w http.ResponseWriter, req *http.Requ
 		return
 	}
 	configs.Configs[version] = cf
-	ts.cf.Put(configs, id)
-	renderJSON(w, configs)
+
+	ts.cf.Delete(id)
+	configs.Configs[version] = cf
+	_, newId, _ := ts.cf.Post(configs)
+
+	renderJSON(w, newId)
 }
 
 func (ts *Service) getConfigHandlerVersion(w http.ResponseWriter, req *http.Request) {
@@ -270,10 +274,15 @@ func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *h
 	for _, c := range cf {
 		result = append(result, c)
 	}
-	task.Configs[version] = result
-	ts.cf.Put(task, id)
 
-	renderJSON(w, task)
+	ts.cf.Delete(id)
+	// delete(task.Configs, version)
+	task.Configs[version] = result
+	_, newId, _ := ts.cf.Post(task)
+
+	renderJSON(w, newId)
+
+	// renderJSON(w, task)
 
 }
 
@@ -287,11 +296,13 @@ func (ts *Service) delConfigHandlerVersion(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	_, ok := ts.cf.Get(id)
+	configs, ok := ts.cf.Get(id)
 
-	if ok != nil {
-		_, newId, _ := ts.cf.DeleteVersion(id, version)
-		// ts.cf.Put(configs, id)
+	if ok == nil {
+		ts.cf.Delete(id)
+		delete(configs.Configs, version)
+		_, newId, _ := ts.cf.Post(configs)
+
 		renderJSON(w, newId)
 	} else {
 		err := errors.New("key not found")

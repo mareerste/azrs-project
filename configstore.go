@@ -87,12 +87,13 @@ func (ps *ConfigStore) DeleteVersion(id string, version string) (*Configs, strin
 	if err != nil {
 		return nil, "", err
 	}
+	var configCopy = configs
 	_, error := kv.Delete(constructKey(id), nil)
 	if error != nil {
 		return nil, "", error
 	}
-	delete(configs.Configs, version)
-	data, err := json.Marshal(configs)
+	delete(configCopy.Configs, version)
+	data, err := json.Marshal(configCopy)
 	if err != nil {
 		return nil, "", err
 	}
@@ -103,7 +104,7 @@ func (ps *ConfigStore) DeleteVersion(id string, version string) (*Configs, strin
 		return nil, "", err
 	}
 
-	return nil, id, nil
+	return configs, id, nil
 
 }
 
