@@ -1,12 +1,22 @@
+// package configstore
 package main
 
-type Service struct {
-	Data map[string][]*Configs
-}
+// type Service struct {
+// 	cf *ConfigStore
+// }
+
+// type ConfigStore struct {
+// 	cli *api.Client
+// }
 
 // type Configs struct {
-// 	Version string    `json:"version"`
-// 	Configs []*Config `json:"configs"`
+// 	Configs map[string][]*Config `json:"configs"`
+// 	Id      string               `json:"id"`
+// 	//version
+// }
+
+// type Config struct {
+// 	Entries map[string]string `json:"entries"`
 // }
 
 type Configs struct {
