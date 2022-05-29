@@ -20,7 +20,8 @@ package main
 // }
 
 type Configs struct {
-	Configs map[string][]*Config `json:"configs"`
+	// Configs map[string][]*Config `json:"configs"`
+	Configs []*Config `json:"configs"`
 }
 
 type Config struct {
