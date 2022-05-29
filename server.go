@@ -36,7 +36,16 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	req_idempotency_key := req.Header.Get("x-idempotency-key")
+	// *TODO: find ConfigGroup under (or containing) req_idempotency_key in Consul
+	// if ConfigGroup was already made with same req_idempotency_key, return its ID,
+	// else call _, rid, err := bp.cf.Post(cf)
+	if groupBody, err := bp.cf.Get(req_idempotency_key); groupBody == nil || err != nil {
+		// Izvuci UUID iz groupBody.
+		// On se vraca u renderJson(w, UUID)
+	}
 	_, rid, err := bp.cf.Post(cf)
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
