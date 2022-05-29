@@ -60,15 +60,24 @@ func createId() string {
 }
 
 const (
-	posts = "posts/%s"
-	all   = "posts"
+	configs = "posts/%s/%s"
+	all     = "posts"
 )
 
-func generateKey() (string, string) {
+// ../config/safasfassafasfasf/version1
+// ../config/safasfassafasfasf/version2
+
+// "asffasfasfasf" => safasfas+version1
+
+func generateKey(version string) (string, string) {
 	id := uuid.New().String()
-	return fmt.Sprintf(posts, id), id
+	return fmt.Sprintf(configs, id, version), id
 }
 
-func constructKey(id string) string {
-	return fmt.Sprintf(posts, id)
+func generateKeyNewVersion(id string, version string) (string, string) {
+	return fmt.Sprintf(configs, id, version), id
+}
+
+func constructKey(id string, version string) string {
+	return fmt.Sprintf(configs, id, version)
 }
