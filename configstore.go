@@ -46,6 +46,24 @@ func (ps *ConfigStore) Get(id string, version string) (*Configs, error) {
 	return configs, nil
 }
 
+func (ps *ConfigStore) GetIdemKey(id string) (*Idem, error) {
+	kv := ps.cli.KV()
+
+	pair, _, err := kv.Get(id, nil)
+
+	if err != nil || pair == nil {
+		return nil, err
+	}
+
+	idem := &Idem{}
+	err = json.Unmarshal(pair.Value, idem)
+	if err != nil {
+		return nil, err
+	}
+
+	return idem, nil
+}
+
 func (ps *ConfigStore) GetAll() ([]*Configs, error) {
 	kv := ps.cli.KV()
 	data, _, err := kv.List(all, nil)
@@ -127,6 +145,24 @@ func (ps *ConfigStore) Post(configs *Configs, version string) (*Configs, string,
 	}
 
 	return configs, rid, nil
+}
+
+func (ps *ConfigStore) PostIdemKey(idemId string, idem *Idem) error {
+	kv := ps.cli.KV()
+
+	data, err := json.Marshal(idem)
+	
+	if err != nil {
+		return err
+	}
+
+	p := &api.KVPair{Key: idemId, Value: data}
+	_, err = kv.Put(p, nil)
+	if err != nil {
+		return err
+	}
+
+	return err
 }
 
 func (ps *ConfigStore) PostNewVersion(configs *Configs, id string, version string) (*Configs, string, error) {

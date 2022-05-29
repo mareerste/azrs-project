@@ -37,6 +37,9 @@ func main() {
 	router.HandleFunc("/config/{id}/{version}", server.delConfigHandler).Methods("DELETE")
 	router.HandleFunc("/config/{id}/{version}", server.createNewVersionHandler).Methods("POST")
 	router.HandleFunc("/config/{id}/{version}", server.addConfigToExistingGroupHandler).Methods("PUT")
+
+	// *Server's scraped metrics UI Path (localhost:9090
+	router.Path("/metrics").Handler(metricsHandler())
 	// start server
 	srv := &http.Server{Addr: "0.0.0.0:8000", Handler: router}
 	go func() {

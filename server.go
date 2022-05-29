@@ -43,12 +43,41 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	_, rid, err := bp.cf.Post(cf, version)
-	if err != nil {
+	req_idempotency_key := req.Header.Get("x-idempotency-key")
+
+	if len(req_idempotency_key) == 0 {
+		err := errors.New("x-idempotency-key missing")
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	idem, err := bp.cf.GetIdemKey(req_idempotency_key)
+
+	if idem == nil && err == nil {
+
+		_, rid, error := bp.cf.Post(cf, version)
+		if error != nil {
+			http.Error(w, error.Error(), http.StatusBadRequest)
+			return
+		}
+
+		idemNew := &Idem{rid, "created"}
+		err = bp.cf.PostIdemKey(req_idempotency_key, idemNew)
+
+		if err != nil {
+			err := errors.New("failed to insert idem key into database")
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		renderJSON(w, rid)
+
+	} else {
+		// err != nil || idem != nil {
+		err := errors.New("this request already exist")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	renderJSON(w, rid)
 }
 
 func (ts *Service) getAllConfig(w http.ResponseWriter, req *http.Request) {

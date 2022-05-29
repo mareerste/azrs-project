@@ -60,8 +60,9 @@ func createId() string {
 }
 
 const (
-	configs = "posts/%s/%s"
-	all     = "posts"
+	configs    = "configs/%s/%s"
+	configsLab = "configs/%s/%s/%s"
+	all        = "configs"
 )
 
 // ../config/safasfassafasfasf/version1
@@ -81,3 +82,7 @@ func generateKeyNewVersion(id string, version string) (string, string) {
 func constructKey(id string, version string) string {
 	return fmt.Sprintf(configs, id, version)
 }
+
+
+
+

@@ -27,3 +27,8 @@ type Configs struct {
 type Config struct {
 	Entries map[string]string `json:"entries"`
 }
+
+type Idem struct {
+	Config_id string `json:"config_id"`
+	Status string `json:"status"`
+}
