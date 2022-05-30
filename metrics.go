@@ -12,16 +12,24 @@ var (
 	currentCount = 0
 
 	// Prometheus metric being exposed/available
-	httpHits = prometheus.NewCounter(
+	total_hits = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "my_app_http_hit_total",
+			Name: "total_hits",
 			Help: "Total number of http hits.",
+		},
+	)
+
+	create_config_hits = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "create_config_hits",
+			Help: "Total number of create config hits.",
 		},
 	)
 
 	// Add all metrics that will be resisted
 	metricsList = []prometheus.Collector{
-		httpHits,
+		total_hits,
+		create_config_hits,
 	}
 
 	// Prometheus Registry to register metrics.
@@ -39,7 +47,8 @@ func metricsHandler() http.Handler {
 
 func count(f func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		httpHits.Inc()
+		total_hits.Inc()
+		create_config_hits.Inc()
 		f(w, r) // original function call
 	}
 }
