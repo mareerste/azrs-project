@@ -33,7 +33,7 @@ func main() {
 	router.HandleFunc("/config/{version}", countCreateConfig(server.createConfigHandler)).Methods("POST")
 	router.HandleFunc("/configs/", countGetAll(server.getAllConfig)).Methods("GET")
 	router.HandleFunc("/config/{id}/{version}", countGet(server.getConfigHandler)).Methods("GET")
-	// router.HandleFunc("/config/{id}/{version}/{labels}", server.getFilteredConfigHandler).Methods("GET") //todo
+	router.HandleFunc("/config/{id}/{version}/{labels}", countSearchByLabels(server.getFilteredConfigHandler)).Methods("GET") //todo
 	router.HandleFunc("/config/{id}/{version}", countDelete(server.delConfigHandler)).Methods("DELETE")
 	router.HandleFunc("/config/{id}/{version}", countCreateNewVersion(server.createNewVersionHandler)).Methods("POST")
 	router.HandleFunc("/config/{id}/{version}", countAddConfigToGroup(server.addConfigToExistingGroupHandler)).Methods("PUT") //todo

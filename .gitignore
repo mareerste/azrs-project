@@ -18,3 +18,5 @@
 .vs
 consul
 .vscode
+.prometheus-data
+prometheus-data/

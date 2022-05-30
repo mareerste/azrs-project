@@ -58,6 +58,13 @@ var (
 		},
 	)
 
+	get_by_labels = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "get_by_labels",
+			Help: "Total number of get config with labels hits.",
+		},
+	)
+
 	// Add all metrics that will be resisted
 	metricsList = []prometheus.Collector{
 		total_hits,
@@ -67,6 +74,7 @@ var (
 		delete_config_hits,
 		create_new_version,
 		add_config_to_group,
+		get_by_labels,
 	}
 
 	// Prometheus Registry to register metrics.
@@ -126,6 +134,14 @@ func countAddConfigToGroup(f func(http.ResponseWriter, *http.Request)) func(http
 	return func(w http.ResponseWriter, r *http.Request) {
 		total_hits.Inc()
 		add_config_to_group.Inc()
+		f(w, r)
+	}
+}
+
+func countSearchByLabels(f func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		total_hits.Inc()
+		get_by_labels.Inc()
 		f(w, r)
 	}
 }
