@@ -30,13 +30,13 @@ func main() {
 		cf: cf,
 	}
 
-	router.HandleFunc("/config/{version}", server.createConfigHandler).Methods("POST")
-	router.HandleFunc("/configs/", server.getAllConfig).Methods("GET")
-	router.HandleFunc("/config/{id}/{version}", server.getConfigHandler).Methods("GET")
-	// router.HandleFunc("/config/{id}/{version}/{labels}", server.getFilteredConfigHandler).Methods("GET")
-	router.HandleFunc("/config/{id}/{version}", server.delConfigHandler).Methods("DELETE")
-	router.HandleFunc("/config/{id}/{version}", server.createNewVersionHandler).Methods("POST")
-	router.HandleFunc("/config/{id}/{version}", server.addConfigToExistingGroupHandler).Methods("PUT")
+	router.HandleFunc("/config/{version}", countCreateConfig(server.createConfigHandler)).Methods("POST")
+	router.HandleFunc("/configs/", countGetAll(server.getAllConfig)).Methods("GET")
+	router.HandleFunc("/config/{id}/{version}", countGet(server.getConfigHandler)).Methods("GET")
+	// router.HandleFunc("/config/{id}/{version}/{labels}", server.getFilteredConfigHandler).Methods("GET") //todo
+	router.HandleFunc("/config/{id}/{version}", countDelete(server.delConfigHandler)).Methods("DELETE")
+	router.HandleFunc("/config/{id}/{version}", countCreateNewVersion(server.createNewVersionHandler)).Methods("POST")
+	router.HandleFunc("/config/{id}/{version}", countAddConfigToGroup(server.addConfigToExistingGroupHandler)).Methods("PUT") //todo
 
 	// *Server's scraped metrics UI Path (localhost:9090
 	router.Path("/metrics").Handler(metricsHandler())
