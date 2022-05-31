@@ -2,18 +2,53 @@ package main
 
 import (
 	"errors"
-	"sort"
-	"strings"
-
 	"mime"
 	"net/http"
+	"sort"
+	"strings"
+	"tracer"
+
+	"io"
 
 	"github.com/gorilla/mux"
-	//"github.com/gorilla/mux"
+	opentracing "github.com/opentracing/opentracing-go"
+)
+
+const (
+	name = "config_service"
 )
 
 type Service struct {
-	cf *ConfigStore
+	cf     *ConfigStore
+	tracer opentracing.tracer
+	closer io.Closer
+}
+
+func NewPostServer() (*Service, error) {
+	store, err := New()
+	if err != nil {
+		return nil, err
+	}
+
+	tracer, closer := tracer.Init(name)
+	opentracing.SetGlobalTracer(tracer)
+	return &service{
+		store:  store,
+		tracer: tracer,
+		closer: closer,
+	}, nil
+}
+
+func (s *Service) GetTracer() opentracing.Tracer {
+	return s.tracer
+}
+
+func (s *Service) GetCloser() io.Closer {
+	return s.closer
+}
+
+func (s *Service) CloseTracer() error {
+	return s.closer.Close()
 }
 
 func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request) {
