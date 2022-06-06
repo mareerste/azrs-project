@@ -1,14 +1,18 @@
 package main
 
 import (
+	"azrs-project/tracer"
+	"context"
 	"errors"
+	"fmt"
+	"io"
 	"mime"
 	"net/http"
-	"sort"
-	"strings"
-	"tracer"
 
-	"io"
+	// tracer "github.com/milossimic/gorest/tracer"
+
+	// "sort"
+	// "strings"
 
 	"github.com/gorilla/mux"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -20,20 +24,23 @@ const (
 
 type Service struct {
 	cf     *ConfigStore
-	tracer opentracing.tracer
+	tracer opentracing.Tracer
 	closer io.Closer
 }
 
-func NewPostServer() (*Service, error) {
-	store, err := New()
+func NewService() (*Service, error) {
+	cf, err := New()
 	if err != nil {
 		return nil, err
 	}
 
 	tracer, closer := tracer.Init(name)
+	fmt.Println("OVDE SAM")
+	fmt.Println(tracer)
+	fmt.Println(closer)
 	opentracing.SetGlobalTracer(tracer)
-	return &service{
-		store:  store,
+	return &Service{
+		cf:     cf,
 		tracer: tracer,
 		closer: closer,
 	}, nil
@@ -53,9 +60,17 @@ func (s *Service) CloseTracer() error {
 
 func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request) {
 
+	fmt.Println(bp)
+	span := tracer.StartSpanFromRequest("createConfigHandler", bp.tracer, req)
+	defer span.Finish()
+
+	span.LogFields(tracer.LogString("handler", fmt.Sprintf("handling post create at %s\n", req.URL.Path)))
+
 	contentType := req.Header.Get("Content-Type")
 	mediatype, _, err := mime.ParseMediaType(contentType)
+
 	if err != nil {
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -74,7 +89,8 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	cf, err := decodeBodyConfigs(req.Body)
+	ctx := tracer.ContextWithSpan(context.Background(), span)
+	cf, err := decodeBodyConfigs(ctx, req.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -88,11 +104,11 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	idem, err := bp.cf.GetIdemKey(req_idempotency_key)
+	idem, err := bp.cf.GetIdemKey(ctx, req_idempotency_key)
 
 	if idem == nil && err == nil {
 
-		_, rid, error := bp.cf.Post(cf, version)
+		_, rid, error := bp.cf.Post(ctx, cf, version)
 		if error != nil {
 			http.Error(w, error.Error(), http.StatusBadRequest)
 			return
@@ -107,7 +123,7 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 			return
 		}
 
-		renderJSON(w, rid)
+		renderJSON(ctx, w, rid)
 
 	} else {
 		// err != nil || idem != nil {
@@ -127,12 +143,12 @@ func (ts *Service) getAllConfig(w http.ResponseWriter, req *http.Request) {
 
 	// renderJSON(w, allConf)
 
-	allConfigs, err := ts.cf.GetAll()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	renderJSON(w, allConfigs)
+	// allConfigs, err := ts.cf.GetAll()
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusBadRequest)
+	// 	return
+	// }
+	// renderJSON(w, allConfigs)
 }
 
 func (ts *Service) getConfigHandler(w http.ResponseWriter, req *http.Request) {
@@ -145,216 +161,205 @@ func (ts *Service) getConfigHandler(w http.ResponseWriter, req *http.Request) {
 	// 	return
 	// }
 	// renderJSON(w, task)
-	id := mux.Vars(req)["id"]
-	version := mux.Vars(req)["version"]
 
-	if len(version) == 0 {
-		err := errors.New("version not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	configs, err := ts.cf.Get(id, version)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	renderJSON(w, configs)
-}
+	// id := mux.Vars(req)["id"]
+	// version := mux.Vars(req)["version"]
 
-func (ts *Service) createNewVersionHandler(w http.ResponseWriter, req *http.Request) {
-	id := mux.Vars(req)["id"]
-	version := mux.Vars(req)["version"]
-	if len(version) == 0 {
-		err := errors.New("can not create new config without version")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	configs, err := ts.cf.Get(id, version)
-
-	if configs != nil || err != nil {
-		err := errors.New("version already exist")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	contentType := req.Header.Get("Content-Type")
-	mediatype, _, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if mediatype != "application/json" {
-		err := errors.New("Expect application/json Content-Type")
-		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
-		return
-	}
-
-	cf, err := decodeBodyConfigs(req.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	_, rid, err := ts.cf.PostNewVersion(cf, id, version)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	renderJSON(w, rid)
-}
-
-func (ts *Service) getFilteredConfigHandler(w http.ResponseWriter, req *http.Request) {
-	id := mux.Vars(req)["id"]
-	version := mux.Vars(req)["version"]
-
-	if len(version) == 0 {
-		err := errors.New("version not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	task, ok := ts.cf.Get(id, version)
-	// result => niz configa
-	// result, error := task.Configs[version]
-	if task == nil {
-		err := errors.New("config not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	labels := mux.Vars(req)["labels"]
-	labelMap := map[string]string{}
-	s := strings.Split(labels, ";")
-	for _, row := range s {
-		rosParse := strings.Split(row, ":")
-		labelMap[rosParse[0]] = rosParse[1]
-	}
-
-	var newTask []*Config
-
-	for i := 0; i < len(task.Configs); i++ {
-		entries := task.Configs[i].Entries
-		if len(labelMap) == len(task.Configs[i].Entries) {
-			check := false
-			keys := make([]string, 0, len(entries))
-			for k := range entries {
-				keys = append(keys, k)
-			}
-
-			sort.Strings(keys)
-			for _, k := range keys {
-				i, ok := labelMap[k]
-				if ok == false {
-					check = true
-					break
-				} else {
-					if i != entries[k] {
-						check = true
-						break
-					}
-				}
-			}
-			if check != true {
-				newTask = append(newTask, task.Configs[i])
-			}
-		}
-	}
-
-	if ok != nil {
-		err := errors.New("key not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	} else if len(newTask) == 0 {
-		err := errors.New("params not match")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	renderJSON(w, newTask)
-}
-
-func (ts *Service) delConfigHandler(w http.ResponseWriter, req *http.Request) {
-	id := mux.Vars(req)["id"]
-	version := mux.Vars(req)["version"]
-
-	if len(version) == 0 {
-		err := errors.New("version not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	msg, err := ts.cf.Delete(id, version)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	renderJSON(w, msg)
-}
-
-func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *http.Request) {
-	contentType := req.Header.Get("Content-Type")
-	mediatype, _, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if mediatype != "application/json" {
-		err := errors.New("Expect application/json Content-Type")
-		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
-		return
-	}
-	cf, err := decodeBodyConfig(req.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	id := mux.Vars(req)["id"]
-	version := mux.Vars(req)["version"]
-
-	if len(version) == 0 {
-		err := errors.New("version not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	task, ok := ts.cf.Get(id, version)
-	// result, error := task.Configs[version]
-
-	// if !error {
+	// if len(version) == 0 {
 	// 	err := errors.New("version not found")
 	// 	http.Error(w, err.Error(), http.StatusNotFound)
 	// 	return
 	// }
-	if task == nil {
-		err := errors.New("key not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
+	// configs, err := ts.cf.Get(id, version)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusBadRequest)
+	// 	return
+	// }
+	// renderJSON(w, configs)
+}
 
-	if ok != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
+func (ts *Service) createNewVersionHandler(w http.ResponseWriter, req *http.Request) {
+	// id := mux.Vars(req)["id"]
+	// version := mux.Vars(req)["version"]
+	// if len(version) == 0 {
+	// 	err := errors.New("can not create new config without version")
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// }
+	// configs, err := ts.cf.Get(id, version)
 
-	for _, c := range cf {
-		task.Configs = append(task.Configs, c)
-	}
+	// if configs != nil || err != nil {
+	// 	err := errors.New("version already exist")
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// }
 
-	result, _, err := ts.cf.PostNewVersion(task, id, version)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
+	// contentType := req.Header.Get("Content-Type")
+	// mediatype, _, err := mime.ParseMediaType(contentType)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusBadRequest)
+	// 	return
+	// }
 
-	if result == nil {
-		err := errors.New("Update error")
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
+	// if mediatype != "application/json" {
+	// 	err := errors.New("Expect application/json Content-Type")
+	// 	http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+	// 	return
+	// }
 
-	renderJSON(w, result)
+	// cf, err := decodeBodyConfigs(req.Body)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusBadRequest)
+	// 	return
+	// }
 
-	// renderJSON(w, task)
+	// _, rid, err := ts.cf.PostNewVersion(cf, id, version)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusBadRequest)
+	// 	return
+	// }
+	// renderJSON(w, rid)
+}
 
+func (ts *Service) getFilteredConfigHandler(w http.ResponseWriter, req *http.Request) {
+	// id := mux.Vars(req)["id"]
+	// version := mux.Vars(req)["version"]
+
+	// if len(version) == 0 {
+	// 	err := errors.New("version not found")
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// }
+
+	// task, ok := ts.cf.Get(id, version)
+	// if task == nil {
+	// 	err := errors.New("config not found")
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// }
+
+	// labels := mux.Vars(req)["labels"]
+	// labelMap := map[string]string{}
+	// s := strings.Split(labels, ";")
+	// for _, row := range s {
+	// 	rosParse := strings.Split(row, ":")
+	// 	labelMap[rosParse[0]] = rosParse[1]
+	// }
+
+	// var newTask []*Config
+
+	// for i := 0; i < len(task.Configs); i++ {
+	// 	entries := task.Configs[i].Entries
+	// 	if len(labelMap) == len(task.Configs[i].Entries) {
+	// 		check := false
+	// 		keys := make([]string, 0, len(entries))
+	// 		for k := range entries {
+	// 			keys = append(keys, k)
+	// 		}
+
+	// 		sort.Strings(keys)
+	// 		for _, k := range keys {
+	// 			i, ok := labelMap[k]
+	// 			if ok == false {
+	// 				check = true
+	// 				break
+	// 			} else {
+	// 				if i != entries[k] {
+	// 					check = true
+	// 					break
+	// 				}
+	// 			}
+	// 		}
+	// 		if check != true {
+	// 			newTask = append(newTask, task.Configs[i])
+	// 		}
+	// 	}
+	// }
+
+	// if ok != nil {
+	// 	err := errors.New("key not found")
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// } else if len(newTask) == 0 {
+	// 	err := errors.New("params not match")
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// }
+	// renderJSON(w, newTask)
+}
+
+func (ts *Service) delConfigHandler(w http.ResponseWriter, req *http.Request) {
+	// id := mux.Vars(req)["id"]
+	// version := mux.Vars(req)["version"]
+
+	// if len(version) == 0 {
+	// 	err := errors.New("version not found")
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// }
+
+	// msg, err := ts.cf.Delete(id, version)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusBadRequest)
+	// 	return
+	// }
+	// renderJSON(w, msg)
+}
+
+func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *http.Request) {
+	// contentType := req.Header.Get("Content-Type")
+	// mediatype, _, err := mime.ParseMediaType(contentType)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusBadRequest)
+	// 	return
+	// }
+
+	// if mediatype != "application/json" {
+	// 	err := errors.New("Expect application/json Content-Type")
+	// 	http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+	// 	return
+	// }
+	// cf, err := decodeBodyConfig(req.Body)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusBadRequest)
+	// 	return
+	// }
+
+	// id := mux.Vars(req)["id"]
+	// version := mux.Vars(req)["version"]
+
+	// if len(version) == 0 {
+	// 	err := errors.New("version not found")
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// }
+	// task, ok := ts.cf.Get(id, version)
+	// if task == nil {
+	// 	err := errors.New("key not found")
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// }
+
+	// if ok != nil {
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// }
+
+	// for _, c := range cf {
+	// 	task.Configs = append(task.Configs, c)
+	// }
+
+	// result, _, err := ts.cf.PostNewVersion(task, id, version)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// }
+
+	// if result == nil {
+	// 	err := errors.New("Update error")
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// }
+
+	// renderJSON(w, result)
 }

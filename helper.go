@@ -1,6 +1,8 @@
 package main
 
 import (
+	"azrs-project/tracer"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,19 +34,25 @@ func decodeBodyConfig(r io.Reader) ([]*Config, error) {
 	}
 	return cf, nil
 }
-func decodeBodyConfigs(r io.Reader) (*Configs, error) {
+func decodeBodyConfigs(ctx context.Context, r io.Reader) (*Configs, error) {
+	span := tracer.StartSpanFromContext(ctx, "decodeBodyConfigs")
+	defer span.Finish()
+
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
 
 	var cf *Configs
 
 	if err := dec.Decode(&cf); err != nil {
+		tracer.LogError(span, err)
 		return nil, err
 	}
 	return cf, nil
 }
 
-func renderJSON(w http.ResponseWriter, v interface{}) {
+func renderJSON(ctx context.Context, w http.ResponseWriter, v interface{}) {
+	span := tracer.StartSpanFromContext(ctx, "renderJSON")
+	defer span.Finish()
 	js, err := json.Marshal(v)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -56,7 +64,7 @@ func renderJSON(w http.ResponseWriter, v interface{}) {
 }
 
 func createId() string {
-	return uuid.New().String()
+	return uuid.New().String()  //unused
 }
 
 const (

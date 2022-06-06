@@ -21,13 +21,10 @@ func main() {
 	router := mux.NewRouter()
 	router.StrictSlash(true)
 
-	cf, err := New()
+	server, err := NewService()
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	server := Service{
-		cf: cf,
+		return
 	}
 
 	router.HandleFunc("/config/{version}", countCreateConfig(server.createConfigHandler)).Methods("POST")

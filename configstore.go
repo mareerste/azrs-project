@@ -1,6 +1,8 @@
 package main
 
 import (
+	"azrs-project/tracer"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -46,18 +48,28 @@ func (ps *ConfigStore) Get(id string, version string) (*Configs, error) {
 	return configs, nil
 }
 
-func (ps *ConfigStore) GetIdemKey(id string) (*Idem, error) {
+func (ps *ConfigStore) GetIdemKey(ctx context.Context, id string) (*Idem, error) {
+
+	span := tracer.StartSpanFromContext(ctx, "GetIdemKey")
+	defer span.Finish()
+
 	kv := ps.cli.KV()
 
 	pair, _, err := kv.Get(id, nil)
 
-	if err != nil || pair == nil {
+	if err != nil {
+		tracer.LogError(span, err)
 		return nil, err
+	} else if pair == nil {
+		// tracer.LogError(span, err) //todo
+		span.LogFields(tracer.LogString("handler", fmt.Sprintf("Pair doesnt exist")))
+		return nil, err;
 	}
 
 	idem := &Idem{}
 	err = json.Unmarshal(pair.Value, idem)
 	if err != nil {
+		tracer.LogError(span, err)
 		return nil, err
 	}
 
@@ -127,7 +139,9 @@ func (ps *ConfigStore) Delete(id string, version string) (map[string]string, err
 
 // }
 
-func (ps *ConfigStore) Post(configs *Configs, version string) (*Configs, string, error) {
+func (ps *ConfigStore) Post(ctx context.Context ,configs *Configs, version string) (*Configs, string, error) {
+	span := tracer.StartSpanFromContext(ctx, "postRequest")
+	defer span.Finish()
 	kv := ps.cli.KV()
 
 	sid, rid := generateKey(version)
