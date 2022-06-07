@@ -27,7 +27,7 @@ func decodeBodyConfig(ctx context.Context, r io.Reader) ([]*Config, error) {
 	span := tracer.StartSpanFromContext(ctx, "decodeBodyConfig")
 	defer span.Finish()
 
-	span.LogFields(tracer.LogString("helper", "decodeBodyConfig"))
+	// span.LogFields(tracer.LogString("helper", "decodeBodyConfig"))
 
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
@@ -43,7 +43,7 @@ func decodeBodyConfigs(ctx context.Context, r io.Reader) (*Configs, error) {
 	span := tracer.StartSpanFromContext(ctx, "decodeBodyConfigs")
 	defer span.Finish()
 
-	span.LogFields(tracer.LogString("helper", "decodeBodyConfigs"))
+	// span.LogFields(tracer.LogString("helper", "decodeBodyConfigs"))
 
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
@@ -61,7 +61,7 @@ func renderJSON(ctx context.Context, w http.ResponseWriter, v interface{}) {
 	span := tracer.StartSpanFromContext(ctx, "renderJSON")
 	defer span.Finish()
 
-	span.LogFields(tracer.LogString("helper", "renderingJSON"))
+	// span.LogFields(tracer.LogString("helper", "renderingJSON"))
 
 	js, err := json.Marshal(v)
 	if err != nil {
@@ -74,9 +74,9 @@ func renderJSON(ctx context.Context, w http.ResponseWriter, v interface{}) {
 	w.Write(js)
 }
 
-func createId() string {
-	return uuid.New().String() //unused
-}
+// func createId() string {
+// 	return uuid.New().String() //unused
+// }
 
 const (
 	configs    = "configs/%s/%s"

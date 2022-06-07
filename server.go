@@ -11,11 +11,6 @@ import (
 	"sort"
 	"strings"
 
-	// tracer "github.com/milossimic/gorest/tracer"
-
-	// "sort"
-	// "strings"
-
 	"github.com/gorilla/mux"
 	opentracing "github.com/opentracing/opentracing-go"
 )
@@ -37,9 +32,9 @@ func NewService() (*Service, error) {
 	}
 
 	tracer, closer := tracer.Init(name)
-	fmt.Println("OVDE SAM")
-	fmt.Println(tracer)
-	fmt.Println(closer)
+	// fmt.Println("OVDE SAM")
+	// fmt.Println(tracer)
+	// fmt.Println(closer)
 	opentracing.SetGlobalTracer(tracer)
 	return &Service{
 		cf:     cf,
@@ -79,6 +74,7 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 
 	if mediatype != "application/json" {
 		err := errors.New("Expect application/json Content-Type")
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 		return
 	}
@@ -87,6 +83,7 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 
 	if len(version) == 0 {
 		err := errors.New("Version is required")
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -134,7 +131,7 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 	} else {
 		// err != nil || idem != nil {
 		err := errors.New("this request already exist")
-		// tracer.LogError(span, err)
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -146,18 +143,19 @@ func (ts *Service) getAllConfig(w http.ResponseWriter, req *http.Request) {
 
 	span.LogFields(tracer.LogString("handler", fmt.Sprintf("handling get all configs at %s\n", req.URL.Path)))
 
-	allConf := []*Configs{}
-	for _, v := range ts.Data {
-		for i := 0; i < len(v); i++ {
-			allConf = append(allConf, v[i])
-		}
-	}
+	// allConf := []*Configs{}
+	// for _, v := range ts.Data {
+	// 	for i := 0; i < len(v); i++ {
+	// 		allConf = append(allConf, v[i])
+	// 	}
+	// }
 	ctx := tracer.ContextWithSpan(context.Background(), span)
 
-	renderJSON(ctx, w, allConf)
+	// renderJSON( w, allConf)
 
 	allConfigs, err := ts.cf.GetAll(ctx)
 	if err != nil {
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -171,16 +169,15 @@ func (ts *Service) getConfigHandler(w http.ResponseWriter, req *http.Request) {
 	span.LogFields(tracer.LogString("handler", fmt.Sprintf("handling get config at %s\n", req.URL.Path)))
 	ctx := tracer.ContextWithSpan(context.Background(), span)
 
-	id := mux.Vars(req)["id"]
-	task, ok := ts.Data[id]
+	// id := mux.Vars(req)["id"]
+	// task, ok := ts.Data[id]
 
-	if !ok {
-		err := errors.New("key not found")
-		tracer.LogError(span, err)
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	renderJSON(ctx, w, task)
+	// if !ok {
+	// 	err := errors.New("key not found")
+	// 	http.Error(w, err.Error(), http.StatusNotFound)
+	// 	return
+	// }
+	// renderJSON(w, task)
 
 	id := mux.Vars(req)["id"]
 	version := mux.Vars(req)["version"]
@@ -241,12 +238,14 @@ func (ts *Service) createNewVersionHandler(w http.ResponseWriter, req *http.Requ
 
 	cf, err := decodeBodyConfigs(ctx, req.Body)
 	if err != nil {
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	_, rid, err := ts.cf.PostNewVersion(ctx, cf, id, version)
 	if err != nil {
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -372,11 +371,13 @@ func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *h
 
 	if mediatype != "application/json" {
 		err := errors.New("Expect application/json Content-Type")
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 		return
 	}
 	cf, err := decodeBodyConfig(ctx, req.Body)
 	if err != nil {
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -393,11 +394,13 @@ func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *h
 	task, ok := ts.cf.Get(ctx, id, version)
 	if task == nil {
 		err := errors.New("key not found")
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	if ok != nil {
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -408,12 +411,14 @@ func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *h
 
 	result, _, err := ts.cf.PostNewVersion(ctx, task, id, version)
 	if err != nil {
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	if result == nil {
 		err := errors.New("Update error")
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}

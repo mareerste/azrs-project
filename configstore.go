@@ -35,7 +35,7 @@ func (ps *ConfigStore) Get(ctx context.Context, id string, version string) (*Con
 	span := tracer.StartSpanFromContext(ctx, "GetDB")
 	defer span.Finish()
 
-	span.LogFields(tracer.LogString("GetDB", "configStore Get"))
+	// span.LogFields(tracer.LogString("GetDB", "configStore Get"))
 
 	kv := ps.cli.KV()
 
@@ -111,10 +111,10 @@ func (ps *ConfigStore) GetAll(ctx context.Context) ([]*Configs, error) {
 }
 
 func (ps *ConfigStore) Delete(ctx context.Context, id string, version string) (map[string]string, error) {
-	span := tracer.StartSpanFromContext(ctx, "DeleteDB")
+	span := tracer.StartSpanFromContext(ctx, "DeleteConfDB")
 	defer span.Finish()
 
-	span.LogFields(tracer.LogString("configstore", "Delete Conf"))
+	// span.LogFields(tracer.LogString("configstore", "Delete Conf"))
 
 	kv := ps.cli.KV()
 	_, err := kv.Delete(constructKey(id, version), nil)
@@ -160,10 +160,10 @@ func (ps *ConfigStore) Delete(ctx context.Context, id string, version string) (m
 // }
 
 func (ps *ConfigStore) Post(ctx context.Context, configs *Configs, version string) (*Configs, string, error) {
-	span := tracer.StartSpanFromContext(ctx, "postRequest")
+	span := tracer.StartSpanFromContext(ctx, "PostRequest")
 	defer span.Finish()
 
-	span.LogFields(tracer.LogString("configstore", "Post"))
+	// span.LogFields(tracer.LogString("configstore", "Post"))
 
 	kv := ps.cli.KV()
 
@@ -190,7 +190,7 @@ func (ps *ConfigStore) PostIdemKey(ctx context.Context, idemId string, idem *Ide
 	span := tracer.StartSpanFromContext(ctx, "postIdemKey")
 	defer span.Finish()
 
-	span.LogFields(tracer.LogString("configstore", "PostIdemKey"))
+	// span.LogFields(tracer.LogString("configstore", "PostIdemKey"))
 
 	kv := ps.cli.KV()
 
@@ -215,7 +215,7 @@ func (ps *ConfigStore) PostNewVersion(ctx context.Context, configs *Configs, id 
 	span := tracer.StartSpanFromContext(ctx, "PostNewVersion")
 	defer span.Finish()
 
-	span.LogFields(tracer.LogString("configstore", "PostNewVersion"))
+	// span.LogFields(tracer.LogString("configstore", "PostNewVersion"))
 
 	cntx := tracer.ContextWithSpan(context.Background(), span)
 
