@@ -23,7 +23,12 @@ func decodeBody(r io.Reader) ([]*Configs, error) {
 	}
 	return cf, nil
 }
-func decodeBodyConfig(r io.Reader) ([]*Config, error) {
+func decodeBodyConfig(ctx context.Context, r io.Reader) ([]*Config, error) {
+	span := tracer.StartSpanFromContext(ctx, "decodeBodyConfig")
+	defer span.Finish()
+
+	span.LogFields(tracer.LogString("helper", "decodeBodyConfig"))
+
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
 
@@ -37,6 +42,8 @@ func decodeBodyConfig(r io.Reader) ([]*Config, error) {
 func decodeBodyConfigs(ctx context.Context, r io.Reader) (*Configs, error) {
 	span := tracer.StartSpanFromContext(ctx, "decodeBodyConfigs")
 	defer span.Finish()
+
+	span.LogFields(tracer.LogString("helper", "decodeBodyConfigs"))
 
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
@@ -53,8 +60,12 @@ func decodeBodyConfigs(ctx context.Context, r io.Reader) (*Configs, error) {
 func renderJSON(ctx context.Context, w http.ResponseWriter, v interface{}) {
 	span := tracer.StartSpanFromContext(ctx, "renderJSON")
 	defer span.Finish()
+
+	span.LogFields(tracer.LogString("helper", "renderingJSON"))
+
 	js, err := json.Marshal(v)
 	if err != nil {
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -64,7 +75,7 @@ func renderJSON(ctx context.Context, w http.ResponseWriter, v interface{}) {
 }
 
 func createId() string {
-	return uuid.New().String()  //unused
+	return uuid.New().String() //unused
 }
 
 const (
@@ -83,14 +94,13 @@ func generateKey(version string) (string, string) {
 	return fmt.Sprintf(configs, id, version), id
 }
 
-func generateKeyNewVersion(id string, version string) (string, string) {
+func generateKeyNewVersion(ctx context.Context, id string, version string) (string, string) {
+	span := tracer.StartSpanFromContext(ctx, "generateKeyNewVersion")
+	defer span.Finish()
+
 	return fmt.Sprintf(configs, id, version), id
 }
 
 func constructKey(id string, version string) string {
 	return fmt.Sprintf(configs, id, version)
 }
-
-
-
-

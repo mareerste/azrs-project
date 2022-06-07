@@ -8,6 +8,8 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"sort"
+	"strings"
 
 	// tracer "github.com/milossimic/gorest/tracer"
 
@@ -60,11 +62,11 @@ func (s *Service) CloseTracer() error {
 
 func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request) {
 
-	fmt.Println(bp)
+	// fmt.Println(bp)
 	span := tracer.StartSpanFromRequest("createConfigHandler", bp.tracer, req)
 	defer span.Finish()
 
-	span.LogFields(tracer.LogString("handler", fmt.Sprintf("handling post create at %s\n", req.URL.Path)))
+	span.LogFields(tracer.LogString("handler", fmt.Sprintf("handling config creation at %s\n", req.URL.Path)))
 
 	contentType := req.Header.Get("Content-Type")
 	mediatype, _, err := mime.ParseMediaType(contentType)
@@ -92,6 +94,7 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 	ctx := tracer.ContextWithSpan(context.Background(), span)
 	cf, err := decodeBodyConfigs(ctx, req.Body)
 	if err != nil {
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -100,6 +103,7 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 
 	if len(req_idempotency_key) == 0 {
 		err := errors.New("x-idempotency-key missing")
+		tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -110,15 +114,17 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 
 		_, rid, error := bp.cf.Post(ctx, cf, version)
 		if error != nil {
+			tracer.LogError(span, error)
 			http.Error(w, error.Error(), http.StatusBadRequest)
 			return
 		}
 
 		idemNew := &Idem{rid, "created"}
-		err = bp.cf.PostIdemKey(req_idempotency_key, idemNew)
-
+		err = bp.cf.PostIdemKey(ctx, req_idempotency_key, idemNew)
+		//
 		if err != nil {
 			err := errors.New("failed to insert idem key into database")
+			tracer.LogError(span, err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -128,238 +134,289 @@ func (bp *Service) createConfigHandler(w http.ResponseWriter, req *http.Request)
 	} else {
 		// err != nil || idem != nil {
 		err := errors.New("this request already exist")
+		// tracer.LogError(span, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 }
 
 func (ts *Service) getAllConfig(w http.ResponseWriter, req *http.Request) {
-	// allConf := []*Configs{}
-	// for _, v := range ts.Data {
-	// 	for i := 0; i < len(v); i++ {
-	// 		allConf = append(allConf, v[i])
-	// 	}
-	// }
+	span := tracer.StartSpanFromRequest("getAllConfigHandler", ts.tracer, req)
+	defer span.Finish()
 
-	// renderJSON(w, allConf)
+	span.LogFields(tracer.LogString("handler", fmt.Sprintf("handling get all configs at %s\n", req.URL.Path)))
 
-	// allConfigs, err := ts.cf.GetAll()
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusBadRequest)
-	// 	return
-	// }
-	// renderJSON(w, allConfigs)
+	allConf := []*Configs{}
+	for _, v := range ts.Data {
+		for i := 0; i < len(v); i++ {
+			allConf = append(allConf, v[i])
+		}
+	}
+	ctx := tracer.ContextWithSpan(context.Background(), span)
+
+	renderJSON(ctx, w, allConf)
+
+	allConfigs, err := ts.cf.GetAll(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	renderJSON(ctx, w, allConfigs)
 }
 
 func (ts *Service) getConfigHandler(w http.ResponseWriter, req *http.Request) {
-	// id := mux.Vars(req)["id"]
-	// task, ok := ts.Data[id]
+	span := tracer.StartSpanFromRequest("getConfigHandler", ts.tracer, req)
+	defer span.Finish()
 
-	// if !ok {
-	// 	err := errors.New("key not found")
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
-	// renderJSON(w, task)
+	span.LogFields(tracer.LogString("handler", fmt.Sprintf("handling get config at %s\n", req.URL.Path)))
+	ctx := tracer.ContextWithSpan(context.Background(), span)
 
-	// id := mux.Vars(req)["id"]
-	// version := mux.Vars(req)["version"]
+	id := mux.Vars(req)["id"]
+	task, ok := ts.Data[id]
 
-	// if len(version) == 0 {
-	// 	err := errors.New("version not found")
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
-	// configs, err := ts.cf.Get(id, version)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusBadRequest)
-	// 	return
-	// }
-	// renderJSON(w, configs)
+	if !ok {
+		err := errors.New("key not found")
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	renderJSON(ctx, w, task)
+
+	id := mux.Vars(req)["id"]
+	version := mux.Vars(req)["version"]
+
+	if len(version) == 0 {
+		err := errors.New("version not found")
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	configs, err := ts.cf.Get(ctx, id, version)
+	if err != nil {
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	renderJSON(ctx, w, configs)
 }
 
 func (ts *Service) createNewVersionHandler(w http.ResponseWriter, req *http.Request) {
-	// id := mux.Vars(req)["id"]
-	// version := mux.Vars(req)["version"]
-	// if len(version) == 0 {
-	// 	err := errors.New("can not create new config without version")
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
-	// configs, err := ts.cf.Get(id, version)
+	span := tracer.StartSpanFromRequest("getConfigHandler", ts.tracer, req)
+	defer span.Finish()
 
-	// if configs != nil || err != nil {
-	// 	err := errors.New("version already exist")
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
+	span.LogFields(tracer.LogString("handler", fmt.Sprintf("handling get config at %s\n", req.URL.Path)))
+	ctx := tracer.ContextWithSpan(context.Background(), span)
 
-	// contentType := req.Header.Get("Content-Type")
-	// mediatype, _, err := mime.ParseMediaType(contentType)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusBadRequest)
-	// 	return
-	// }
+	id := mux.Vars(req)["id"]
+	version := mux.Vars(req)["version"]
+	if len(version) == 0 {
+		err := errors.New("can not create new config without version")
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	configs, err := ts.cf.Get(ctx, id, version)
 
-	// if mediatype != "application/json" {
-	// 	err := errors.New("Expect application/json Content-Type")
-	// 	http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
-	// 	return
-	// }
+	if configs != nil || err != nil {
+		err := errors.New("version already exist")
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
 
-	// cf, err := decodeBodyConfigs(req.Body)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusBadRequest)
-	// 	return
-	// }
+	contentType := req.Header.Get("Content-Type")
+	mediatype, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	// _, rid, err := ts.cf.PostNewVersion(cf, id, version)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusBadRequest)
-	// 	return
-	// }
-	// renderJSON(w, rid)
+	if mediatype != "application/json" {
+		err := errors.New("Expect application/json Content-Type")
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+		return
+	}
+
+	cf, err := decodeBodyConfigs(ctx, req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	_, rid, err := ts.cf.PostNewVersion(ctx, cf, id, version)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	renderJSON(ctx, w, rid)
 }
 
 func (ts *Service) getFilteredConfigHandler(w http.ResponseWriter, req *http.Request) {
-	// id := mux.Vars(req)["id"]
-	// version := mux.Vars(req)["version"]
+	span := tracer.StartSpanFromRequest("getFilteredConfigHandler", ts.tracer, req)
+	defer span.Finish()
 
-	// if len(version) == 0 {
-	// 	err := errors.New("version not found")
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
+	span.LogFields(tracer.LogString("handler", fmt.Sprintf("handling get filtered config at %s\n", req.URL.Path)))
+	ctx := tracer.ContextWithSpan(context.Background(), span)
 
-	// task, ok := ts.cf.Get(id, version)
-	// if task == nil {
-	// 	err := errors.New("config not found")
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
+	id := mux.Vars(req)["id"]
+	version := mux.Vars(req)["version"]
 
-	// labels := mux.Vars(req)["labels"]
-	// labelMap := map[string]string{}
-	// s := strings.Split(labels, ";")
-	// for _, row := range s {
-	// 	rosParse := strings.Split(row, ":")
-	// 	labelMap[rosParse[0]] = rosParse[1]
-	// }
+	if len(version) == 0 {
+		err := errors.New("version not found")
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
 
-	// var newTask []*Config
+	task, ok := ts.cf.Get(ctx, id, version)
+	if task == nil {
+		err := errors.New("config not found")
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
 
-	// for i := 0; i < len(task.Configs); i++ {
-	// 	entries := task.Configs[i].Entries
-	// 	if len(labelMap) == len(task.Configs[i].Entries) {
-	// 		check := false
-	// 		keys := make([]string, 0, len(entries))
-	// 		for k := range entries {
-	// 			keys = append(keys, k)
-	// 		}
+	labels := mux.Vars(req)["labels"]
+	labelMap := map[string]string{}
+	s := strings.Split(labels, ";")
+	for _, row := range s {
+		rosParse := strings.Split(row, ":")
+		labelMap[rosParse[0]] = rosParse[1]
+	}
 
-	// 		sort.Strings(keys)
-	// 		for _, k := range keys {
-	// 			i, ok := labelMap[k]
-	// 			if ok == false {
-	// 				check = true
-	// 				break
-	// 			} else {
-	// 				if i != entries[k] {
-	// 					check = true
-	// 					break
-	// 				}
-	// 			}
-	// 		}
-	// 		if check != true {
-	// 			newTask = append(newTask, task.Configs[i])
-	// 		}
-	// 	}
-	// }
+	var newTask []*Config
 
-	// if ok != nil {
-	// 	err := errors.New("key not found")
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// } else if len(newTask) == 0 {
-	// 	err := errors.New("params not match")
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
-	// renderJSON(w, newTask)
+	for i := 0; i < len(task.Configs); i++ {
+		entries := task.Configs[i].Entries
+		if len(labelMap) == len(task.Configs[i].Entries) {
+			check := false
+			keys := make([]string, 0, len(entries))
+			for k := range entries {
+				keys = append(keys, k)
+			}
+
+			sort.Strings(keys)
+			for _, k := range keys {
+				i, ok := labelMap[k]
+				if ok == false {
+					check = true
+					break
+				} else {
+					if i != entries[k] {
+						check = true
+						break
+					}
+				}
+			}
+			if check != true {
+				newTask = append(newTask, task.Configs[i])
+			}
+		}
+	}
+
+	if ok != nil {
+		err := errors.New("key not found")
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	} else if len(newTask) == 0 {
+		err := errors.New("params not match")
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	renderJSON(ctx, w, newTask)
 }
 
 func (ts *Service) delConfigHandler(w http.ResponseWriter, req *http.Request) {
-	// id := mux.Vars(req)["id"]
-	// version := mux.Vars(req)["version"]
+	span := tracer.StartSpanFromRequest("getConfigHandler", ts.tracer, req)
+	defer span.Finish()
 
-	// if len(version) == 0 {
-	// 	err := errors.New("version not found")
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
+	span.LogFields(tracer.LogString("handler", fmt.Sprintf("handling delete config at %s\n", req.URL.Path)))
+	ctx := tracer.ContextWithSpan(context.Background(), span)
 
-	// msg, err := ts.cf.Delete(id, version)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusBadRequest)
-	// 	return
-	// }
-	// renderJSON(w, msg)
+	id := mux.Vars(req)["id"]
+	version := mux.Vars(req)["version"]
+
+	if len(version) == 0 {
+		err := errors.New("version not found")
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	msg, err := ts.cf.Delete(ctx, id, version)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	renderJSON(ctx, w, msg)
 }
 
 func (ts *Service) addConfigToExistingGroupHandler(w http.ResponseWriter, req *http.Request) {
-	// contentType := req.Header.Get("Content-Type")
-	// mediatype, _, err := mime.ParseMediaType(contentType)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusBadRequest)
-	// 	return
-	// }
+	span := tracer.StartSpanFromRequest("addConfigToExistingGroup", ts.tracer, req)
+	defer span.Finish()
 
-	// if mediatype != "application/json" {
-	// 	err := errors.New("Expect application/json Content-Type")
-	// 	http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
-	// 	return
-	// }
-	// cf, err := decodeBodyConfig(req.Body)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusBadRequest)
-	// 	return
-	// }
+	span.LogFields(tracer.LogString("handler", fmt.Sprintf("handling add config to a group at %s\n", req.URL.Path)))
+	ctx := tracer.ContextWithSpan(context.Background(), span)
 
-	// id := mux.Vars(req)["id"]
-	// version := mux.Vars(req)["version"]
+	contentType := req.Header.Get("Content-Type")
+	mediatype, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	// if len(version) == 0 {
-	// 	err := errors.New("version not found")
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
-	// task, ok := ts.cf.Get(id, version)
-	// if task == nil {
-	// 	err := errors.New("key not found")
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
+	if mediatype != "application/json" {
+		err := errors.New("Expect application/json Content-Type")
+		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+		return
+	}
+	cf, err := decodeBodyConfig(ctx, req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	// if ok != nil {
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
+	id := mux.Vars(req)["id"]
+	version := mux.Vars(req)["version"]
 
-	// for _, c := range cf {
-	// 	task.Configs = append(task.Configs, c)
-	// }
+	if len(version) == 0 {
+		err := errors.New("version not found")
+		tracer.LogError(span, err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	task, ok := ts.cf.Get(ctx, id, version)
+	if task == nil {
+		err := errors.New("key not found")
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
 
-	// result, _, err := ts.cf.PostNewVersion(task, id, version)
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
+	if ok != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
 
-	// if result == nil {
-	// 	err := errors.New("Update error")
-	// 	http.Error(w, err.Error(), http.StatusNotFound)
-	// 	return
-	// }
+	for _, c := range cf {
+		task.Configs = append(task.Configs, c)
+	}
 
-	// renderJSON(w, result)
+	result, _, err := ts.cf.PostNewVersion(ctx, task, id, version)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	if result == nil {
+		err := errors.New("Update error")
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	renderJSON(ctx, w, result)
 }

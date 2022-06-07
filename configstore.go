@@ -4,6 +4,7 @@ import (
 	"azrs-project/tracer"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -30,18 +31,25 @@ func New() (*ConfigStore, error) {
 	}, nil
 }
 
-func (ps *ConfigStore) Get(id string, version string) (*Configs, error) {
+func (ps *ConfigStore) Get(ctx context.Context, id string, version string) (*Configs, error) {
+	span := tracer.StartSpanFromContext(ctx, "GetDB")
+	defer span.Finish()
+
+	span.LogFields(tracer.LogString("GetDB", "configStore Get"))
+
 	kv := ps.cli.KV()
 
 	pair, _, err := kv.Get(constructKey(id, version), nil)
 
 	if err != nil || pair == nil {
+		tracer.LogError(span, err)
 		return nil, err
 	}
 
 	configs := &Configs{}
 	err = json.Unmarshal(pair.Value, configs)
 	if err != nil {
+		tracer.LogError(span, err)
 		return nil, err
 	}
 
@@ -62,8 +70,8 @@ func (ps *ConfigStore) GetIdemKey(ctx context.Context, id string) (*Idem, error)
 		return nil, err
 	} else if pair == nil {
 		// tracer.LogError(span, err) //todo
-		span.LogFields(tracer.LogString("handler", fmt.Sprintf("Pair doesnt exist")))
-		return nil, err;
+		span.LogFields(tracer.LogString("idemkey", fmt.Sprintf("Pair doesnt exist")))
+		return nil, err
 	}
 
 	idem := &Idem{}
@@ -76,10 +84,15 @@ func (ps *ConfigStore) GetIdemKey(ctx context.Context, id string) (*Idem, error)
 	return idem, nil
 }
 
-func (ps *ConfigStore) GetAll() ([]*Configs, error) {
+func (ps *ConfigStore) GetAll(ctx context.Context) ([]*Configs, error) {
+
+	span := tracer.StartSpanFromContext(ctx, "GetAllDB")
+	defer span.Finish()
+
 	kv := ps.cli.KV()
 	data, _, err := kv.List(all, nil)
 	if err != nil {
+		tracer.LogError(span, err)
 		return nil, err
 	}
 
@@ -88,6 +101,7 @@ func (ps *ConfigStore) GetAll() ([]*Configs, error) {
 		config := &Configs{}
 		err = json.Unmarshal(pair.Value, config)
 		if err != nil {
+			tracer.LogError(span, err)
 			return nil, err
 		}
 		configs = append(configs, config)
@@ -96,10 +110,16 @@ func (ps *ConfigStore) GetAll() ([]*Configs, error) {
 	return configs, nil
 }
 
-func (ps *ConfigStore) Delete(id string, version string) (map[string]string, error) {
+func (ps *ConfigStore) Delete(ctx context.Context, id string, version string) (map[string]string, error) {
+	span := tracer.StartSpanFromContext(ctx, "DeleteDB")
+	defer span.Finish()
+
+	span.LogFields(tracer.LogString("configstore", "Delete Conf"))
+
 	kv := ps.cli.KV()
 	_, err := kv.Delete(constructKey(id, version), nil)
 	if err != nil {
+		tracer.LogError(span, err)
 		return nil, err
 	}
 
@@ -139,9 +159,12 @@ func (ps *ConfigStore) Delete(id string, version string) (map[string]string, err
 
 // }
 
-func (ps *ConfigStore) Post(ctx context.Context ,configs *Configs, version string) (*Configs, string, error) {
+func (ps *ConfigStore) Post(ctx context.Context, configs *Configs, version string) (*Configs, string, error) {
 	span := tracer.StartSpanFromContext(ctx, "postRequest")
 	defer span.Finish()
+
+	span.LogFields(tracer.LogString("configstore", "Post"))
+
 	kv := ps.cli.KV()
 
 	sid, rid := generateKey(version)
@@ -149,50 +172,68 @@ func (ps *ConfigStore) Post(ctx context.Context ,configs *Configs, version strin
 
 	data, err := json.Marshal(configs)
 	if err != nil {
+		/**/ tracer.LogError(span, errors.New("Cannot marshal"))
 		return nil, "", err
 	}
 
 	p := &api.KVPair{Key: sid, Value: data}
 	_, err = kv.Put(p, nil)
 	if err != nil {
+		tracer.LogError(span, err)
 		return nil, "", err
 	}
 
 	return configs, rid, nil
 }
 
-func (ps *ConfigStore) PostIdemKey(idemId string, idem *Idem) error {
+func (ps *ConfigStore) PostIdemKey(ctx context.Context, idemId string, idem *Idem) error {
+	span := tracer.StartSpanFromContext(ctx, "postIdemKey")
+	defer span.Finish()
+
+	span.LogFields(tracer.LogString("configstore", "PostIdemKey"))
+
 	kv := ps.cli.KV()
 
 	data, err := json.Marshal(idem)
-	
+
 	if err != nil {
+		tracer.LogError(span, errors.New("Cannot marshal"))
 		return err
 	}
 
 	p := &api.KVPair{Key: idemId, Value: data}
 	_, err = kv.Put(p, nil)
 	if err != nil {
+		tracer.LogError(span, err)
 		return err
 	}
 
 	return err
 }
 
-func (ps *ConfigStore) PostNewVersion(configs *Configs, id string, version string) (*Configs, string, error) {
+func (ps *ConfigStore) PostNewVersion(ctx context.Context, configs *Configs, id string, version string) (*Configs, string, error) {
+	span := tracer.StartSpanFromContext(ctx, "PostNewVersion")
+	defer span.Finish()
+
+	span.LogFields(tracer.LogString("configstore", "PostNewVersion"))
+
+	cntx := tracer.ContextWithSpan(context.Background(), span)
+
 	kv := ps.cli.KV()
 
-	sid, rid := generateKeyNewVersion(id, version)
+	sid, rid := generateKeyNewVersion(cntx, id, version)
 	// post.Id = rid
 
 	data, err := json.Marshal(configs)
 	if err != nil {
+		tracer.LogError(span, err)
 		return nil, "", err
 	}
 
 	p := &api.KVPair{Key: sid, Value: data}
 	_, err = kv.Put(p, nil)
 	if err != nil {
+		tracer.LogError(span, err)
 		return nil, "", err
 	}
 
