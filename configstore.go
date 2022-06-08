@@ -39,7 +39,9 @@ func (ps *ConfigStore) Get(ctx context.Context, id string, version string) (*Con
 
 	kv := ps.cli.KV()
 
+	childSpan := tracer.StartSpanFromContext(ctx, "kv.Get")
 	pair, _, err := kv.Get(constructKey(id, version), nil)
+	childSpan.Finish()
 
 	if err != nil || pair == nil {
 		tracer.LogError(span, err)
@@ -61,9 +63,13 @@ func (ps *ConfigStore) GetIdemKey(ctx context.Context, id string) (*Idem, error)
 	span := tracer.StartSpanFromContext(ctx, "GetIdemKey")
 	defer span.Finish()
 
+	span.LogFields(tracer.LogString("db", fmt.Sprintf("getidemkey")))
+
 	kv := ps.cli.KV()
 
+	childSpan := tracer.StartSpanFromContext(ctx, "kv.Get")
 	pair, _, err := kv.Get(id, nil)
+	childSpan.Finish()
 
 	if err != nil {
 		tracer.LogError(span, err)
@@ -85,16 +91,19 @@ func (ps *ConfigStore) GetIdemKey(ctx context.Context, id string) (*Idem, error)
 }
 
 func (ps *ConfigStore) GetAll(ctx context.Context) ([]*Configs, error) {
-
 	span := tracer.StartSpanFromContext(ctx, "GetAllDB")
 	defer span.Finish()
 
+	span.LogFields(tracer.LogString("db", fmt.Sprintf("DB get all configs query ")))
+
+	childSpan := tracer.StartSpanFromContext(ctx, "kv.List")
 	kv := ps.cli.KV()
 	data, _, err := kv.List(all, nil)
 	if err != nil {
 		tracer.LogError(span, err)
 		return nil, err
 	}
+	childSpan.Finish()
 
 	configs := []*Configs{}
 	for _, pair := range data {
@@ -114,10 +123,14 @@ func (ps *ConfigStore) Delete(ctx context.Context, id string, version string) (m
 	span := tracer.StartSpanFromContext(ctx, "DeleteConfDB")
 	defer span.Finish()
 
-	// span.LogFields(tracer.LogString("configstore", "Delete Conf"))
+	span.LogFields(tracer.LogString("db", "Delete Conf"))
 
 	kv := ps.cli.KV()
+
+	kidSpan := tracer.StartSpanFromContext(ctx, "kv.Delete")
 	_, err := kv.Delete(constructKey(id, version), nil)
+	kidSpan.Finish()
+
 	if err != nil {
 		tracer.LogError(span, err)
 		return nil, err
@@ -177,7 +190,11 @@ func (ps *ConfigStore) Post(ctx context.Context, configs *Configs, version strin
 	}
 
 	p := &api.KVPair{Key: sid, Value: data}
+
+	kidSpan := tracer.StartSpanFromContext(ctx, "kv.Put")
 	_, err = kv.Put(p, nil)
+	kidSpan.Finish()
+
 	if err != nil {
 		tracer.LogError(span, err)
 		return nil, "", err
@@ -202,7 +219,11 @@ func (ps *ConfigStore) PostIdemKey(ctx context.Context, idemId string, idem *Ide
 	}
 
 	p := &api.KVPair{Key: idemId, Value: data}
+
+	kidSpan := tracer.StartSpanFromContext(ctx, "kv.Put")
 	_, err = kv.Put(p, nil)
+	kidSpan.Finish()
+
 	if err != nil {
 		tracer.LogError(span, err)
 		return err
@@ -231,7 +252,11 @@ func (ps *ConfigStore) PostNewVersion(ctx context.Context, configs *Configs, id 
 	}
 
 	p := &api.KVPair{Key: sid, Value: data}
+
+	kidSpan := tracer.StartSpanFromContext(ctx, "kv.Put")
 	_, err = kv.Put(p, nil)
+	kidSpan.Finish()
+
 	if err != nil {
 		tracer.LogError(span, err)
 		return nil, "", err
