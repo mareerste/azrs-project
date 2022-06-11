@@ -19,7 +19,8 @@ services:
       - "14268:14268"
       - "14250:14250"
   app:
-    build: .
+    # build: .
+    image: "2dan3/ars_project:latest"
     restart: always
     ports:
       - "8000:8000"
