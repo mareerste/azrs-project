@@ -14,6 +14,7 @@ import (
 
 // TEST CICD pipeline
 // GRACEFUL SHUTDOWN :
+// Corgies are awesome
 
 func main() {
 	quit := make(chan os.Signal)
